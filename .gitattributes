@@ -1,0 +1,6 @@
+# Keep line endings stable across machines: this plugin is installed by other
+# hosts, and index.js / cordis.patch.yml must arrive byte-identical everywhere.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ico binary

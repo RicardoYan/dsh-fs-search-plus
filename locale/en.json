@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "File search plus (dsh-fs-search-plus)",
+    "description": "glob and grep follow directory links by default; grep gains case, context and file-type options; glob walks in parallel yet still returns newest first."
+  }
+}

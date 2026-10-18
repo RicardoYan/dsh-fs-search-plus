@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "文件搜索增强 (dsh-fs-search-plus)",
+    "description": "让 glob / grep 默认跟随目录链接；grep 支持忽略大小写、上下文、文件类型；glob 并行扫描但仍按修改时间倒序。"
+  }
+}

@@ -1,0 +1,5 @@
+# Bundle layer contributed by dsh-fs-search-plus.
+# Inserts one Host-only plugin row; every field is a tool argument, so no config is required.
+- insert:
+    - id: dsh-fs-search-plus
+      name: 'dsh-fs-search-plus'
