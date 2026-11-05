@@ -1,6 +1,6 @@
 {
   "name": "dsh-fs-search-plus",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "private": true,
   "description": "Extend the built-in glob/grep tools: symlink following by default, extra grep flags, and a parallel glob that still returns newest first · 增强 DSH 内置的 glob / grep：默认跟随符号链接，grep 增加忽略大小写、上下文、文件类型，glob 并行扫描但结果仍按修改时间倒序",
   "type": "module",
@@ -29,7 +29,7 @@
   "license": "MIT",
   "engines": {
     "node": "^22.19.0 || >=24.0.0",
-    "dsh": ">=0.2.1-rc.1 <0.3.0-0"
+    "dsh": ">=0.2.2-rc.1 <0.3.0-0"
   },
   "scripts": {
     "build": "node scripts/build.mjs",
@@ -37,10 +37,10 @@
     "test": "npm run build && node test/selftest.mjs"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "4.0.5",
-    "@deepseek-ai/dsh-subprocess": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-system-prompt": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-tools": "0.2.1-rc.5",
+    "@deepseek-ai/cordis": "4.1.0",
+    "@deepseek-ai/dsh-subprocess": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-system-prompt": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-tools": "0.2.2-rc.1",
     "@types/node": "^26.2.0",
     "typescript": "^6.0.3"
   },
@@ -50,7 +50,7 @@
     }
   },
   "peerDependencies": {
-    "@deepseek-ai/dsh": ">=0.2.1-rc.1 <0.3.0-0"
+    "@deepseek-ai/dsh": ">=0.2.2-rc.1 <0.3.0-0"
   },
   "icon": "icon.svg"
 }

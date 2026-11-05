@@ -9,12 +9,26 @@
  *
  * ## Two layers, and why each one has to be where it is
  *
- * 1. **Schema layer** — `system-prompt/assemble` is a waterfall over the
- *    assembled prompt, and its return value is authoritative. Rewriting
- *    `assembly.tools` there is the only way to widen a *built-in* tool's
- *    parameters: `systemPrompt.tools()` appends a provider rather than
- *    shadowing one, and `orderTools` sorts without de-duplicating, so a second
- *    `grep` schema would be shown twice.
+ * 1. **Schema layer** — the model-facing tool list is read from
+ *    `tools.view(scope).visible`, so the plugin wraps that method and replaces
+ *    the two search tools' `parameters` with a widened copy. Nothing else is
+ *    touched: `view()` is also what `definitions()` (and therefore the executor's
+ *    `describe`) reads through, so the official tool executes exactly as before
+ *    and the two owners never disagree about which definition is live.
+ *
+ *    DSH 0.2.1 shaped this differently and the old seam is gone: back then
+ *    `system-prompt/assemble` received the assembled prompt *including* `tools`
+ *    and its return value was authoritative, so a waterfall listener rewrote
+ *    `assembly.tools`. Since 0.2.2 `PromptPresentation` no longer carries
+ *    `tools` at all — the assembly re-attaches the tool list computed *before*
+ *    the waterfall — so that listener silently stopped doing anything.
+ *
+ *    Two rejected alternatives, both measured on 0.2.2-rc.1:
+ *    `systemPrompt.tools()` appends a provider rather than shadowing one, and
+ *    the resulting duplicate schema is NOT de-duplicated (`glob` appeared
+ *    twice); taking over as the tool executor via `tools.setExecutor()` would
+ *    collide with the deployment's own executor, which throws
+ *    `Only one tool executor may be registered in each scope`.
  *
  * 2. **argv layer** — `ctx.subprocess.spawn` is wrapped so every ripgrep run
  *    this plugin recognizes gets the caller's extra flags. The tool builds its
@@ -53,7 +67,6 @@ import { existsSync } from 'node:fs'
 import { stat } from 'node:fs/promises'
 import { isAbsolute, resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
-import type { PromptAssembly } from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-subprocess'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-tools'
@@ -526,37 +539,68 @@ const EXTRA_PROPERTIES: Record<string, Record<string, unknown>> = {
 }
 
 /**
- * Add this plugin's fields to the two built-in tool schemas.
+ * Add this plugin's fields to one tool definition's model-facing schema.
  *
- * The result is a new tool object with new `parameters`; the original objects
- * are left untouched, because the same definition is shared by every other
- * assembly of the same process. `required` is never written: every field here
- * is optional, and the official `pattern` requirement must stay exactly as it is.
- * @param assembly - the assembled prompt.
- * @returns the same assembly when neither tool is present or already widened.
+ * The result is a new definition with new `parameters`; the original object is
+ * left untouched, because the same definition is shared by every other view of
+ * the same process. `required` is never written: every field here is optional,
+ * and the official `pattern` requirement must stay exactly as it is.
+ * @param definition - one visible tool definition.
+ * @returns the same definition when it is not one of ours or already widened.
  */
-function widenSchemas(assembly: PromptAssembly): PromptAssembly {
-  let changed = false
-  const tools = assembly.tools.map((tool) => {
-    const extra = EXTRA_PROPERTIES[tool.name]
-    if (extra === undefined) return tool
-    const parameters = tool.parameters
-    if (parameters === null || typeof parameters !== 'object') return tool
-    const properties = parameters['properties']
-    if (properties === null || typeof properties !== 'object' || Array.isArray(properties)) return tool
-    const existing = properties as Record<string, unknown>
-    const additions: Record<string, unknown> = {}
-    let missing = false
-    for (const [key, value] of Object.entries(extra)) {
-      if (Object.hasOwn(existing, key)) continue
-      additions[key] = value
-      missing = true
-    }
-    if (!missing) return tool
-    changed = true
-    return { ...tool, parameters: { ...parameters, properties: { ...existing, ...additions } } }
-  })
-  return changed ? { ...assembly, tools } : assembly
+function widenDefinition<T extends { name: string; parameters: unknown }>(definition: T): T {
+  const extra = EXTRA_PROPERTIES[definition.name]
+  if (extra === undefined) return definition
+  const parameters = definition.parameters
+  if (parameters === null || typeof parameters !== 'object') return definition
+  const properties = (parameters as { properties?: unknown }).properties
+  if (properties === null || typeof properties !== 'object' || Array.isArray(properties)) return definition
+  const existing = properties as Record<string, unknown>
+  const additions: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(extra)) {
+    if (Object.hasOwn(existing, key)) continue
+    additions[key] = value
+  }
+  if (Object.keys(additions).length === 0) return definition
+  return { ...definition, parameters: { ...parameters, properties: { ...existing, ...additions } } }
+}
+
+/** The `tools` service surface this plugin wraps. */
+interface ToolsServiceLike {
+  definitions(scope?: unknown, toolSet?: unknown): Array<{ name: string; parameters: unknown }>
+}
+
+/**
+ * Wrap `tools.definitions` so the two search tools expose this plugin's fields.
+ *
+ * `definitions()` is what the executor's `describe()` projects into the
+ * model-facing schema list (`ToolsService`'s own `systemPrompt.tools()` provider
+ * calls `selectExecutor(scope).describe(this.definitions(scope, toolSet))`), and
+ * it is deliberately NOT the method the execution path reads: `get()` and
+ * `executable()` resolve through `view()`, which stays untouched. Widening here
+ * therefore changes exactly what the model is offered and nothing about what
+ * runs.
+ *
+ * The wrapper always calls the original first and only rewrites the definitions
+ * it owns; a list that already carries the fields comes back unchanged, so
+ * re-application after a plugin reload is a no-op.
+ * @param tools - the `tools` service instance.
+ * @returns a restore function.
+ */
+function wrapDefinitions(tools: ToolsServiceLike): () => void {
+  const original = tools.definitions
+  if (typeof original !== 'function') return () => {}
+  const marker = Symbol.for('dsh-fs-search-plus.definitions')
+  if ((original as unknown as Record<symbol, unknown>)[marker] === true) return () => {}
+  const wrapped = function (this: unknown, scope?: unknown, toolSet?: unknown) {
+    const list = original.call(this, scope, toolSet)
+    return Array.isArray(list) ? list.map(widenDefinition) : list
+  } as ToolsServiceLike['definitions'] & Record<symbol, unknown>
+  wrapped[marker] = true
+  tools.definitions = wrapped
+  return () => {
+    if (tools.definitions === (wrapped as ToolsServiceLike['definitions'])) tools.definitions = original
+  }
 }
 
 /**
@@ -583,9 +627,17 @@ function validateArguments(tool: 'glob' | 'grep', args: Record<string, unknown>)
 }
 
 export function apply(ctx: Context): void {
-  ctx.on('system-prompt/assemble', async (assembly, _context, next) => {
-    const assembled = await next()
-    return widenSchemas(assembled)
+  // The schema layer lives on the `tools` service, which may load after this
+  // plugin, so it is installed through `ctx.inject` rather than at apply time.
+  ctx.inject(['tools'], (scope) => {
+    const tools = scope.tools as unknown as ToolsServiceLike | undefined
+    if (tools === undefined || typeof tools.definitions !== 'function') {
+      ctx.logger?.warn?.(`${LOG} ctx.tools.definitions is missing; glob/grep schema not widened`)
+      return
+    }
+    const restore = wrapDefinitions(tools)
+    ctx.logger?.info?.(`${LOG} widened glob/grep schemas`)
+    return restore
   })
 
   // Opens the async scope every spawn of this call inherits. Only the two search

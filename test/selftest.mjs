@@ -36,6 +36,7 @@ registerHooks({
 
 const { Context } = await import('@deepseek-ai/cordis')
 const { default: ToolRuntime } = await import('@deepseek-ai/dsh-tools')
+const NativeExecutor = await import('@deepseek-ai/dsh-tool-executor-native')
 const { default: SystemPrompt } = await import('@deepseek-ai/dsh-system-prompt')
 const { default: LocalSubprocess } = await import('@deepseek-ai/dsh-subprocess-local')
 const timeoutPolicy = await import('@deepseek-ai/dsh-tool-call-timeout-policy')
@@ -109,6 +110,10 @@ async function host() {
   const ctx = new Context()
   await ctx.plugin(SystemPrompt, {})
   await ctx.plugin(ToolRuntime, {})
+  // DSH 0.2.2 moved tool dispatch into a selectable executor. Without one the
+  // `tools` service cannot describe or run anything, so both `assemble()` and
+  // `execute()` throw `ToolExecutorUnavailableError`.
+  await ctx.plugin(NativeExecutor, {})
   await ctx.plugin(LocalSubprocess, {})
   await ctx.plugin(timeoutPolicy, {})
   ctx.provide('workingDirectory', { ensure: async () => tmp })
@@ -138,15 +143,23 @@ async function host() {
 }
 
 const ctx = await host()
-const call = (name, args, extra = {}) =>
-  ctx.get('tools').execute({
-    name,
-    arguments: args,
-    callId: `${name}-${Math.random().toString(36).slice(2)}`,
+// DSH 0.2.2 replaced the single-call `tools.execute({name, arguments, …})` with a
+// batch: `{ calls, agent, signal }` returning `{ results }`. The helper keeps the
+// old call shape at every site below and unwraps the single result here.
+const call = async (name, args, extra = {}) => {
+  const callId = `${name}-${Math.random().toString(36).slice(2)}`
+  const batch = await ctx.get('tools').execute({
+    calls: [{ type: 'tool_call', id: callId, name, arguments: JSON.stringify(args) }],
     signal: new AbortController().signal,
-    agent: { session: { header: { id: 'sess-selftest' } } },
+    // DSH 0.2.2's `trySaveFormattedResult` reads `agent.session.header.id` to
+    // attribute the spill; without it the official tool skips the save.
+    agent: { session: { header: { id: 'sess-selftest', cwd: tmp }, append: () => ({ seq: 0 }) } },
     ...extra,
   })
+  const result = batch.results[0]?.result
+  if (result === undefined) throw new Error(`tool batch returned no result for ${name}`)
+  return result
+}
 const textOf = (result) => (result.isError ? `ERROR ${result.error?.message}` : (result.content?.[0]?.text ?? ''))
 
 // ---------------------------------------------------------------- 1. schema
@@ -160,9 +173,16 @@ check('glob required unchanged', byName.get('glob')?.parameters?.required, ['pat
 check('grep required unchanged', byName.get('grep')?.parameters?.required, ['pattern'])
 check('glob had no duplicate schemas', assembly.tools.filter((t) => t.name === 'glob').length, 1)
 check('grep had no duplicate schemas', assembly.tools.filter((t) => t.name === 'grep').length, 1)
-// The official definition object must not have been mutated in place.
+// The official definition must not have been mutated in place. The plugin's
+// fields are added to the *visible* view only, so `tools.get()` (which reads the
+// registered definition) still reports the official parameter list.
 const officialGlob = ctx.get('tools').get('glob')
 check('official glob definition untouched', Object.keys(officialGlob.parameters.properties), ['pattern', 'path'])
+checkThat(
+  'widened view did not mutate the official object',
+  !Object.hasOwn(byName.get('glob').parameters.properties, 'follow') || officialGlob !== byName.get('glob'),
+  'view entry must be a copy',
+)
 
 // ---------------------------------------------------------------- 2. argv
 console.log('\n--- argv rewriting ---')
