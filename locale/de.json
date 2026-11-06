@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Dateisuche Plus (dsh-fs-search-plus)",
+    "description": "glob und grep folgen standardmäßig Verzeichnisverknüpfungen; grep erhält Optionen für Groß-/Kleinschreibung, Kontext und Dateityp; glob durchsucht parallel und liefert trotzdem die neuesten zuerst."
+  }
+}

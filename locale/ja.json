@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "ファイル検索 Plus (dsh-fs-search-plus)",
+    "description": "glob と grep は既定でディレクトリリンクをたどります。grep には大文字小文字、前後行、ファイル種別のオプションが加わり、glob は並列に走査しつつ最新のものを先頭に返します。"
+  }
+}

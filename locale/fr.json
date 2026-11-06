@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Recherche de fichiers Plus (dsh-fs-search-plus)",
+    "description": "glob et grep suivent les liens de répertoire par défaut ; grep gagne des options de casse, de contexte et de type de fichier ; glob parcourt en parallèle tout en renvoyant les plus récents en premier."
+  }
+}

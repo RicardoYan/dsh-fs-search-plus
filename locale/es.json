@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Búsqueda de archivos Plus (dsh-fs-search-plus)",
+    "description": "glob y grep siguen enlaces de directorio de forma predeterminada; grep añade opciones de mayúsculas, contexto y tipo de archivo; glob recorre en paralelo y aun así devuelve primero los más recientes."
+  }
+}
