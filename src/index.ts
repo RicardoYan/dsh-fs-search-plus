@@ -565,7 +565,13 @@ function widenDefinition<T extends { name: string; parameters: unknown }>(defini
   return { ...definition, parameters: { ...parameters, properties: { ...existing, ...additions } } }
 }
 
-/** The `tools` service surface this plugin wraps. */
+/**
+ * The slice of the public `tools` service this plugin wraps.
+ *
+ * `definitions(scope?, toolSet?)` is a published method of `ToolsService` in
+ * DSH 0.2.2 (`dsh-tools/lib/types/index.d.ts`), so only the fields this plugin
+ * reads are narrowed here rather than redeclaring the whole service.
+ */
 interface ToolsServiceLike {
   definitions(scope?: unknown, toolSet?: unknown): Array<{ name: string; parameters: unknown }>
 }
