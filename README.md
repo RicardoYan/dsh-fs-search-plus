@@ -7,7 +7,7 @@ DSH 自带的两个搜索工具用内置 ripgrep，参数是固定的。这个�
 ## 安装
 
 ```sh
-dsh plugin --profile desktop add github:RicardoYan/dsh-fs-search-plus#v0.2.1
+dsh plugin --profile desktop add github:RicardoYan/dsh-fs-search-plus#v0.2.2
 ```
 
 Web 端把 `desktop` 换成你的 profile 名（一般是 `web`）。装完重启 DSH。
@@ -47,7 +47,7 @@ Web 端把 `desktop` 换成你的 profile 名（一般是 `web`）。装完重�
 
 ## 适用版本
 
-`@deepseek-ai/dsh` `>=0.2.2-rc.1 <0.3.0-0`。依赖 DSH 的内部接口，改用其他版本前先确认。
+`@deepseek-ai/dsh` `>=0.2.2-rc.3 <0.3.0-0`。依赖 DSH 的内部接口，改用其他版本前先确认。
 
 ## 许可证
 
